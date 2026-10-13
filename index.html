@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>근무기록표</title>
+<style>
+  :root {
+    --line: #333;
+    --head: #e9e9e9;
+    --muted: #777;
+    --in: #1f6feb;
+    --out: #d1242f;
+    --today: #fff6d6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #f3f3f3;
+    font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", sans-serif;
+    color: #111;
+  }
+  .page {
+    max-width: 760px;
+    margin: 24px auto;
+    background: #fff;
+    padding: 40px 48px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.12);
+  }
+  h1 {
+    text-align: center;
+    font-size: 26px;
+    letter-spacing: 8px;
+    margin: 0 0 24px;
+  }
+
+  /* 상단 컨트롤 */
+  .panel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--line);
+    padding: 14px 16px;
+    margin-bottom: 18px;
+  }
+  .clock .label { font-size: 12px; color: var(--muted); }
+  .clock .now { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .clock .status { font-size: 13px; margin-top: 4px; }
+  .btns { display: flex; gap: 8px; }
+  .btns button {
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 10px 22px;
+    border: 0;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+  }
+  #btnIn  { background: var(--in); }
+  #btnOut { background: var(--out); }
+  .btns button:disabled { background: #bbb; cursor: not-allowed; }
+
+  .month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 10px;
+  }
+  .month-nav strong { font-size: 18px; min-width: 120px; text-align: center; }
+  .month-nav button, .tools button {
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 10px;
+    border: 1px solid #999;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  /* 표 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td {
+    border: 1px solid var(--line);
+    text-align: center;
+    height: 26px;
+    padding: 2px 4px;
+  }
+  th { background: var(--head); font-weight: 600; height: 36px; }
+  td.date { background: #f7f7f7; }
+  td.time { cursor: pointer; font-variant-numeric: tabular-nums; }
+  td.time:hover { background: #eef4ff; }
+  td.time.working { color: var(--in); font-weight: 600; }
+  tr.today td { background: var(--today); }
+  .sat { color: #1f5fbf; }
+  .sun { color: #c62828; }
+  td.pay input { width: 16px; height: 16px; cursor: pointer; }
+
+  /* 수업 메모 드롭다운 */
+  tr.day { cursor: pointer; }
+  td.toggle { width: 34px; color: var(--muted); font-size: 11px; }
+  td.toggle .arrow { display: inline-block; transition: transform .15s; }
+  tr.open td.toggle .arrow { transform: rotate(180deg); }
+  td.toggle.has-note { color: var(--in); }
+  td.toggle.has-note::after { content: "●"; font-size: 7px; vertical-align: top; margin-left: 1px; }
+  tr.detail td { background: #fafafa; text-align: left; padding: 10px 12px; cursor: default; }
+  tr.detail[hidden] { display: none; }
+  .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .notes label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .notes textarea {
+    width: 100%;
+    min-height: 84px;
+    resize: vertical;
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 8px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+  }
+  .notes .saved { font-size: 11px; color: var(--muted); margin-top: 4px; height: 14px; }
+  @media (max-width: 600px) { .notes { grid-template-columns: 1fr; } }
+  tfoot td { background: var(--head); font-weight: 600; }
+
+  .tools {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .tools .actions { display: flex; gap: 6px; }
+
+  /* 로그인 / 계정 */
+  .account {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    margin: -12px 0 12px;
+  }
+  .account button {
+    font: inherit;
+    font-size: 12px;
+    padding: 2px 8px;
+    border: 1px solid #bbb;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #login { text-align: center; padding: 60px 0 40px; }
+  #login p { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  #login button {
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 22px;
+    border: 1px solid #999;
+    background: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #loading { text-align: center; color: var(--muted); padding: 60px 0; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 600px) {
+    .page { margin: 0; padding: 20px 16px; }
+    table { font-size: 12px; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    .page { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+    .panel, .month-nav button, .tools, .account { display: none !important; }
+    tr.today td { background: none; }
+    td.date { background: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>일일 근무기록표</h1>
+
+  <div id="loading">불러오는 중…</div>
+
+  <div id="login" hidden>
+    <p>기록을 보려면 로그인해 주세요.</p>
+    <button id="btnLogin">Google 계정으로 로그인</button>
+  </div>
+
+  <div id="app" hidden>
+  <div class="account">
+    <span id="who"></span>
+    <button id="btnLogout">로그아웃</button>
+  </div>
+
+  <div class="panel">
+    <div class="clock">
+      <div class="label">한국 표준시 (KST)</div>
+      <div class="now" id="now">-</div>
+      <div class="status" id="status">-</div>
+    </div>
+    <div class="btns">
+      <button id="btnIn">출근</button>
+      <button id="btnOut">퇴근</button>
+    </div>
+  </div>
+
+  <div class="month-nav">
+    <button id="prev">◀ 이전달</button>
+    <strong id="monthLabel"></strong>
+    <button id="next">다음달 ▶</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:34px"></th>
+        <th style="width:12%">날짜</th>
+        <th style="width:12%">요일</th>
+        <th>출근 시간</th>
+        <th>퇴근 시간</th>
+        <th style="width:18%">급여 지급</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">합 계</td>
+        <td colspan="2" id="sumDays"></td>
+        <td id="sumPaid"></td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="tools">
+    <span>줄을 클릭하면 수업 메모가 열리고, 시간 칸을 클릭하면 직접 수정할 수 있어요. 모든 기록은 클라우드에 자동 저장됩니다.</span>
+    <div class="actions">
+      <button id="import" title="예전 로컬 버전에서 '백업 저장'한 JSON 파일을 클라우드로 옮깁니다">예전 기록 가져오기</button>
+      <button id="btnPrint">인쇄</button>
+      <input type="file" id="file" accept="application/json" hidden>
+    </div>
+  </div>
+  </div>
+</div>
+
+<script type="module">
+  // ===== Firebase 설정 =====
+  // Firebase 콘솔 > 프로젝트 설정 > 내 앱(웹)에서 복사한 값으로 바꿔주세요.
+  // 이 값은 공개되어도 괜찮습니다. 데이터 보호는 Firestore 보안 규칙이 담당합니다.
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxmpmIK93yqp8BT3YH3JrqZ2WWi9Z0rlo",
+    authDomain: "work-project-d520a.firebaseapp.com",
+    projectId: "work-project-d520a",
+    storageBucket: "work-project-d520a.firebasestorage.app",
+    messagingSenderId: "918044784765",
+    appId: "1:918044784765:web:e32a82ad76b21122355914",
+  };
+
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import {
+    getAuth, onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider,
+  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+  import {
+    initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+    collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch,
+  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+  const fbApp = initializeApp(firebaseConfig);
+  const auth = getAuth(fbApp);
+  // 오프라인 캐시: 인터넷이 잠깐 끊겨도 기록되고, 다시 연결되면 자동 업로드
+  const db = initializeFirestore(fbApp, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+  });
+
+  const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+
+  // ---- 저장소 (Firestore) ----
+  // 경로: users/{로그인한 사용자 uid}/days/{"2026-10-13"}
+  // 문서: { in: "09:02", out: "18:05", outNextDay, paid, lesson, next }
+  let records = {};
+  let user = null;
+  let unsubscribe = null;
+  let loaded = false;
+  const noteTimers = {}; // 메모 입력 중인 날짜 → 저장 대기 타이머
+
+  const dayRef = key => doc(db, 'users', user.uid, 'days', key);
+
+  // 한 날짜의 기록을 통째로 저장 (비어 있으면 문서 삭제)
+  function save(key) {
+    const r = records[key];
+    const empty = !r || !Object.keys(r).some(k => r[k]);
+    if (empty) delete records[key];
+    const p = empty ? deleteDoc(dayRef(key)) : setDoc(dayRef(key), r);
+    p.catch(err => {
+      console.error(err);
+      alert('클라우드 저장에 실패했습니다: ' + err.message);
+    });
+  }
+
+  function startSync() {
+    unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'days'), snap => {
+      const next = {};
+      snap.forEach(d => { next[d.id] = d.data(); });
+      // 아직 저장 대기 중인 메모는 내가 입력 중인 값이 최신이므로 유지
+      for (const k of Object.keys(noteTimers)) {
+        if (records[k]) next[k] = records[k]; else delete next[k];
+      }
+      records = next;
+      // 내가 방금 쓴 변경의 메아리면 이미 화면에 반영돼 있으니 다시 그리지 않음
+      if (!loaded || !snap.metadata.hasPendingWrites) renderKeepFocus();
+      loaded = true;
+      showApp();
+    }, err => {
+      console.error(err);
+      alert('기록을 불러오지 못했습니다: ' + err.message);
+    });
+  }
+
+  // ---- 한국 표준시 ----
+  // PC 시간대 설정과 무관하게 항상 Asia/Seoul 기준으로 계산
+  const kstFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  });
+  function kstNow() {
+    const p = Object.fromEntries(kstFmt.formatToParts(new Date()).map(x => [x.type, x.value]));
+    return {
+      date: `${p.year}-${p.month}-${p.day}`,
+      time: `${p.hour}:${p.minute}`,
+      sec: p.second,
+      y: +p.year, m: +p.month, d: +p.day,
+    };
+  }
+  const pad = n => String(n).padStart(2, '0');
+  const keyOf = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+  const weekdayOf = (y, m, d) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+
+  // 퇴근 안 찍힌 가장 최근 출근 기록 (자정 넘겨 퇴근하는 경우 대비)
+  function openShift() {
+    const keys = Object.keys(records).filter(k => records[k].in && !records[k].out).sort();
+    return keys.length ? keys[keys.length - 1] : null;
+  }
+
+  // ---- 화면 ----
+  let view = (() => { const n = kstNow(); return { y: n.y, m: n.m }; })();
+  const openNotes = new Set(); // 메모가 펼쳐진 날짜들
+
+  function render() {
+    const now = kstNow();
+    const last = new Date(Date.UTC(view.y, view.m, 0)).getUTCDate();
+    document.getElementById('monthLabel').textContent = `${view.y}년 ${view.m}월`;
+
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    let workDays = 0, paidDays = 0;
+
+    for (let d = 1; d <= last; d++) {
+      const key = keyOf(view.y, view.m, d);
+      const r = records[key] || {};
+      const wd = weekdayOf(view.y, view.m, d);
+      const cls = wd === 0 ? 'sun' : wd === 6 ? 'sat' : '';
+      if (r.in) workDays++;
+      if (r.paid) paidDays++;
+
+      const isOpen = openNotes.has(key);
+      const hasNote = !!(r.lesson || r.next);
+      const tr = document.createElement('tr');
+      tr.className = 'day' + (key === now.date ? ' today' : '') + (isOpen ? ' open' : '');
+      tr.dataset.key = key;
+      tr.innerHTML = `
+        <td class="toggle ${hasNote ? 'has-note' : ''}" title="수업 메모"><span class="arrow">▼</span></td>
+        <td class="date ${cls}">${d}</td>
+        <td class="${cls}">${WEEK[wd]}</td>
+        <td class="time ${r.in && !r.out ? 'working' : ''}" data-key="${key}" data-field="in">${r.in || ''}</td>
+        <td class="time" data-key="${key}" data-field="out">${r.out ? r.out + (r.outNextDay ? ' (익일)' : '') : ''}</td>
+        <td class="pay"><input type="checkbox" data-key="${key}" ${r.paid ? 'checked' : ''}></td>`;
+      tbody.appendChild(tr);
+
+      const detail = document.createElement('tr');
+      detail.className = 'detail';
+      detail.hidden = !isOpen;
+      detail.innerHTML = `
+        <td colspan="6">
+          <div class="notes">
+            <div>
+              <label>오늘 한 수업</label>
+              <textarea data-key="${key}" data-field="lesson" placeholder="예) 수학 2단원 일차방정식 풀이, 숙제 검사"></textarea>
+            </div>
+            <div>
+              <label>다음 준비사항 · 예정 수업</label>
+              <textarea data-key="${key}" data-field="next" placeholder="예) 3단원 진도, 오답노트 준비, 단원평가 프린트"></textarea>
+            </div>
+          </div>
+          <div class="saved"></div>
+        </td>`;
+      // innerHTML 대신 value로 넣어야 입력한 글자(<, & 등)가 그대로 보존됨
+      detail.querySelector('[data-field="lesson"]').value = r.lesson || '';
+      detail.querySelector('[data-field="next"]').value = r.next || '';
+      tbody.appendChild(detail);
+    }
+    document.getElementById('sumDays').textContent = `근무 ${workDays}일`;
+    document.getElementById('sumPaid').textContent = `지급 ${paidDays}일`;
+    updateButtons();
+  }
+
+  // 다른 기기에서 바뀐 내용으로 다시 그릴 때, 입력 중이던 메모 칸의 커서를 유지
+  function renderKeepFocus() {
+    const a = document.activeElement;
+    const focus = a && a.tagName === 'TEXTAREA'
+      ? { key: a.dataset.key, field: a.dataset.field, s: a.selectionStart, e: a.selectionEnd }
+      : null;
+    render();
+    if (!focus) return;
+    const t = document.querySelector(`textarea[data-key="${focus.key}"][data-field="${focus.field}"]`);
+    if (t && !t.closest('tr.detail').hidden) { t.focus(); t.setSelectionRange(focus.s, focus.e); }
+  }
+
+  function updateButtons() {
+    const now = kstNow();
+    const open = openShift();
+    const today = records[now.date] || {};
+    document.getElementById('btnIn').disabled = !!open || !!today.in;
+    document.getElementById('btnOut').disabled = !open;
+
+    let msg;
+    if (open) msg = `근무 중 · ${open.slice(5).replace('-', '/')} ${records[open].in} 출근`;
+    else if (today.out) msg = `오늘 근무 완료 (${today.in} ~ ${today.out})`;
+    else msg = '출근 전';
+    document.getElementById('status').textContent = msg;
+  }
+
+  function tick() {
+    const n = kstNow();
+    const w = WEEK[weekdayOf(n.y, n.m, n.d)];
+    document.getElementById('now').textContent = `${n.y}.${pad(n.m)}.${pad(n.d)} (${w}) ${n.time}:${n.sec}`;
+    // 자정이 지나면 오늘 표시/버튼 상태 갱신
+    if (tick.lastDate && tick.lastDate !== n.date) render();
+    tick.lastDate = n.date;
+  }
+
+  // ---- 버튼 ----
+  document.getElementById('btnIn').onclick = () => {
+    const n = kstNow();
+    if (openShift() || (records[n.date] && records[n.date].in)) return;
+    records[n.date] = { ...(records[n.date] || {}), in: n.time };
+    save(n.date);
+    view = { y: n.y, m: n.m };
+    render();
+  };
+
+  document.getElementById('btnOut').onclick = () => {
+    const key = openShift();
+    if (!key) return;
+    const n = kstNow();
+    records[key].out = n.time;
+    if (n.date !== key) records[key].outNextDay = true;
+    save(key);
+    render();
+  };
+
+  // 줄 클릭 → 수업 메모 펼치기/접기, 시간 칸 클릭 → 직접 수정
+  document.getElementById('tbody').addEventListener('click', e => {
+    const td = e.target.closest('td.time');
+    if (!td) {
+      const row = e.target.closest('tr.day');
+      if (!row || e.target.closest('td.pay')) return;
+      const k = row.dataset.key;
+      const detail = row.nextElementSibling;
+      if (openNotes.has(k)) { openNotes.delete(k); row.classList.remove('open'); detail.hidden = true; }
+      else {
+        openNotes.add(k); row.classList.add('open'); detail.hidden = false;
+        detail.querySelector('textarea').focus();
+      }
+      return;
+    }
+    const { key, field } = td.dataset;
+    const r = { ...(records[key] || {}) };
+    const label = field === 'in' ? '출근' : '퇴근';
+    const v = prompt(`${key} ${label} 시간 (예: 09:00)\n비우면 삭제됩니다.`, r[field] || '');
+    if (v === null) return;
+    const t = v.trim();
+    if (t && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(t)) { alert('HH:MM 형식으로 입력해주세요. (예: 09:00)'); return; }
+    if (t) {
+      const [h, m] = t.split(':');
+      r[field] = `${pad(+h)}:${m}`;
+    } else {
+      delete r[field];
+      if (field === 'out') delete r.outNextDay;
+    }
+    if (field === 'out' && r.out && r.in) r.outNextDay = r.out < r.in;
+    records[key] = r;
+    save(key);
+    render();
+  });
+
+  // 수업 메모 입력 → 자동 저장 (다시 그리지 않아 입력 중 커서 유지)
+  let savedTimer;
+  document.getElementById('tbody').addEventListener('input', e => {
+    if (e.target.tagName !== 'TEXTAREA') return;
+    const { key, field } = e.target.dataset;
+    const r = { ...(records[key] || {}) };
+    if (e.target.value.trim()) r[field] = e.target.value; else delete r[field];
+    records[key] = r;
+
+    const detail = e.target.closest('tr.detail');
+    detail.previousElementSibling.querySelector('td.toggle')
+      .classList.toggle('has-note', !!(r.lesson || r.next));
+    const msg = detail.querySelector('.saved');
+    msg.textContent = '입력 중…';
+
+    // 글자마다 저장하지 않고 입력이 멈추면 0.6초 뒤 한 번 저장
+    clearTimeout(noteTimers[key]);
+    noteTimers[key] = setTimeout(() => {
+      delete noteTimers[key];
+      save(key);
+      msg.textContent = '저장됨';
+      clearTimeout(savedTimer);
+      savedTimer = setTimeout(() => { msg.textContent = ''; }, 1500);
+    }, 600);
+  });
+
+  // 급여 지급 체크
+  document.getElementById('tbody').addEventListener('change', e => {
+    if (e.target.type !== 'checkbox') return;
+    const key = e.target.dataset.key;
+    records[key] = { ...(records[key] || {}), paid: e.target.checked };
+    save(key);
+    render();
+  });
+
+  // 월 이동
+  document.getElementById('prev').onclick = () => {
+    view = view.m === 1 ? { y: view.y - 1, m: 12 } : { y: view.y, m: view.m - 1 };
+    render();
+  };
+  document.getElementById('next').onclick = () => {
+    view = view.m === 12 ? { y: view.y + 1, m: 1 } : { y: view.y, m: view.m + 1 };
+    render();
+  };
+
+  document.getElementById('btnPrint').onclick = () => window.print();
+
+  // 예전 로컬 버전의 백업 JSON → 클라우드로 옮기기 (같은 날짜는 파일 내용으로 덮어씀)
+  document.getElementById('import').onclick = () => document.getElementById('file').click();
+  document.getElementById('file').onchange = async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    let data;
+    try {
+      data = JSON.parse(await f.text());
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw 0;
+    } catch { alert('올바른 백업 파일이 아닙니다.'); return; }
+
+    const keys = Object.keys(data).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k));
+    if (!keys.length) { alert('가져올 기록이 없습니다.'); return; }
+    if (!confirm(`${keys.length}일치 기록을 가져올까요?\n같은 날짜에 이미 있는 기록은 파일 내용으로 바뀝니다.`)) return;
+
+    // Firestore 한 번에 최대 500건 → 나눠서 저장
+    for (let i = 0; i < keys.length; i += 400) {
+      const batch = writeBatch(db);
+      keys.slice(i, i + 400).forEach(k => batch.set(dayRef(k), data[k]));
+      await batch.commit();
+    }
+    alert('가져오기 완료!');
+  };
+
+  // ---- 로그인 ----
+  function showApp() {
+    document.getElementById('loading').hidden = true;
+    document.getElementById('login').hidden = true;
+    document.getElementById('app').hidden = false;
+  }
+
+  document.getElementById('btnLogin').onclick = () =>
+    signInWithPopup(auth, new GoogleAuthProvider()).catch(err => {
+      if (err.code !== 'auth/popup-closed-by-user') alert('로그인 실패: ' + err.message);
+    });
+  document.getElementById('btnLogout').onclick = () => signOut(auth);
+
+  onAuthStateChanged(auth, u => {
+    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+    for (const k of Object.keys(noteTimers)) { clearTimeout(noteTimers[k]); delete noteTimers[k]; }
+    user = u;
+    records = {};
+    loaded = false;
+    if (u) {
+      document.getElementById('who').textContent = u.email;
+      startSync(); // 첫 데이터가 오면 showApp()
+    } else {
+      document.getElementById('loading').hidden = true;
+      document.getElementById('app').hidden = true;
+      document.getElementById('login').hidden = false;
+    }
+  });
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
