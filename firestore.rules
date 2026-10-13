@@ -1,9 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 로그인한 본인만 자기 기록(users/{내 uid}/...)을 읽고 쓸 수 있음
-    match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // 로그인 없이 누구나 근무기록(days/날짜)을 보고 기록할 수 있음
+    // 단, 날짜 형식 문서와 정해진 항목만 허용해서 엉뚱한 데이터가 쌓이지 않게 막음
+    match /days/{day} {
+      allow read: if true;
+      allow delete: if true;
+      allow create, update: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['in', 'out', 'outNextDay', 'paid', 'lesson', 'next'])
+        && (!('lesson' in request.resource.data) || request.resource.data.lesson.size() <= 5000)
+        && (!('next' in request.resource.data) || request.resource.data.next.size() <= 5000);
     }
   }
 }

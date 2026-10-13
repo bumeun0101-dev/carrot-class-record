@@ -136,37 +136,6 @@
   }
   .tools .actions { display: flex; gap: 6px; }
 
-  /* 로그인 / 계정 */
-  .account {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--muted);
-    margin: -12px 0 12px;
-  }
-  .account button {
-    font: inherit;
-    font-size: 12px;
-    padding: 2px 8px;
-    border: 1px solid #bbb;
-    background: #fff;
-    border-radius: 4px;
-    cursor: pointer;
-  }
-  #login { text-align: center; padding: 60px 0 40px; }
-  #login p { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
-  #login button {
-    font: inherit;
-    font-size: 15px;
-    font-weight: 600;
-    padding: 10px 22px;
-    border: 1px solid #999;
-    background: #fff;
-    border-radius: 6px;
-    cursor: pointer;
-  }
   #loading { text-align: center; color: var(--muted); padding: 60px 0; }
   [hidden] { display: none !important; }
 
@@ -178,7 +147,7 @@
   @media print {
     body { background: #fff; }
     .page { box-shadow: none; margin: 0; padding: 0; max-width: none; }
-    .panel, .month-nav button, .tools, .account { display: none !important; }
+    .panel, .month-nav button, .tools { display: none !important; }
     tr.today td { background: none; }
     td.date { background: none; }
   }
@@ -190,17 +159,7 @@
 
   <div id="loading">불러오는 중…</div>
 
-  <div id="login" hidden>
-    <p>기록을 보려면 로그인해 주세요.</p>
-    <button id="btnLogin">Google 계정으로 로그인</button>
-  </div>
-
   <div id="app" hidden>
-  <div class="account">
-    <span id="who"></span>
-    <button id="btnLogout">로그아웃</button>
-  </div>
-
   <div class="panel">
     <div class="clock">
       <div class="label">한국 표준시 (KST)</div>
@@ -266,15 +225,11 @@
 
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
   import {
-    getAuth, onAuthStateChanged, signInWithPopup, signOut, GoogleAuthProvider,
-  } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-  import {
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
     collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch,
   } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
   const fbApp = initializeApp(firebaseConfig);
-  const auth = getAuth(fbApp);
   // 오프라인 캐시: 인터넷이 잠깐 끊겨도 기록되고, 다시 연결되면 자동 업로드
   const db = initializeFirestore(fbApp, {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
@@ -283,15 +238,13 @@
   const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
 
   // ---- 저장소 (Firestore) ----
-  // 경로: users/{로그인한 사용자 uid}/days/{"2026-10-13"}
+  // 경로: days/{"2026-10-13"} (로그인 없이 모두가 같은 기록을 공유)
   // 문서: { in: "09:02", out: "18:05", outNextDay, paid, lesson, next }
   let records = {};
-  let user = null;
-  let unsubscribe = null;
   let loaded = false;
   const noteTimers = {}; // 메모 입력 중인 날짜 → 저장 대기 타이머
 
-  const dayRef = key => doc(db, 'users', user.uid, 'days', key);
+  const dayRef = key => doc(db, 'days', key);
 
   // 한 날짜의 기록을 통째로 저장 (비어 있으면 문서 삭제)
   function save(key) {
@@ -306,7 +259,7 @@
   }
 
   function startSync() {
-    unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'days'), snap => {
+    onSnapshot(collection(db, 'days'), snap => {
       const next = {};
       snap.forEach(d => { next[d.id] = d.data(); });
       // 아직 저장 대기 중인 메모는 내가 입력 중인 값이 최신이므로 유지
@@ -320,7 +273,7 @@
       showApp();
     }, err => {
       console.error(err);
-      alert('기록을 불러오지 못했습니다: ' + err.message);
+      document.getElementById('loading').textContent = '기록을 불러오지 못했습니다: ' + err.message;
     });
   }
 
@@ -575,35 +528,12 @@
     alert('가져오기 완료!');
   };
 
-  // ---- 로그인 ----
   function showApp() {
     document.getElementById('loading').hidden = true;
-    document.getElementById('login').hidden = true;
     document.getElementById('app').hidden = false;
   }
 
-  document.getElementById('btnLogin').onclick = () =>
-    signInWithPopup(auth, new GoogleAuthProvider()).catch(err => {
-      if (err.code !== 'auth/popup-closed-by-user') alert('로그인 실패: ' + err.message);
-    });
-  document.getElementById('btnLogout').onclick = () => signOut(auth);
-
-  onAuthStateChanged(auth, u => {
-    if (unsubscribe) { unsubscribe(); unsubscribe = null; }
-    for (const k of Object.keys(noteTimers)) { clearTimeout(noteTimers[k]); delete noteTimers[k]; }
-    user = u;
-    records = {};
-    loaded = false;
-    if (u) {
-      document.getElementById('who').textContent = u.email;
-      startSync(); // 첫 데이터가 오면 showApp()
-    } else {
-      document.getElementById('loading').hidden = true;
-      document.getElementById('app').hidden = true;
-      document.getElementById('login').hidden = false;
-    }
-  });
-
+  startSync(); // 첫 데이터가 오면 showApp()
   tick();
   setInterval(tick, 1000);
 </script>
